@@ -67,28 +67,24 @@ rustPlatform.buildRustPackage (finalAttrs: {
   __structuredAttrs = true;
 
   pname = "sable-desktop";
-  version = "1.21.0";
+  version = "1.22.11";
 
   src = fetchFromGitHub {
     owner = "SableClient";
     repo = "Sable";
-    tag = "v1.21.0";
-    hash = "sha256-vYoKNflV4vdJpgYVxYCxAQhvqDh1Qf+7qgIFHxriTTU=";
+    tag = "v${finalAttrs.version}";
+    hash = "sha256-RwYKaJ4k2lqXjVSPN/o0Qw8GIGnXfb6acCpva36qQoM=";
   };
-
-  # patch to use version-identical binary packages, delete at version 1.21.1
-  patches = [ ./sableclient-npm-dist.patch ];
 
   pnpmDeps = fetchPnpmDeps {
     inherit (finalAttrs)
       pname
       version
       src
-      patches
       ;
     inherit pnpm;
     fetcherVersion = 3;
-    hash = "sha256-BPUVRre9+SXV0wrZxT0PeHl7YWv6+DmPDjy57gpt8hc=";
+    hash = "sha256-sI0tE73l+yKS8186tUHrNAJmGD26XEe7828ohvvc+1o=";
   };
 
   # vite would try to use git to set these otherwise
@@ -101,7 +97,7 @@ rustPlatform.buildRustPackage (finalAttrs: {
   cargoRoot = "src-tauri";
   buildAndTestSubdir = finalAttrs.cargoRoot;
 
-  cargoHash = "sha256-E38C5pttAidLLRLI3+UPYJqQbBhFsMI1nnYu06gvSF8=";
+  cargoHash = "sha256-i+Hi9ToIU4TXm8DJXotAvj2LuF/oamiYwMtLh7ANU5w=";
   cargoDepsName = finalAttrs.pname;
 
   tauriBuildFlags = "--no-sign";
@@ -109,6 +105,8 @@ rustPlatform.buildRustPackage (finalAttrs: {
   buildFeatures = [
     "cef"
     "custom-protocol"
+    # the frontend calls the native crypto engine's commands on every login under tauri
+    "matrix-crypto"
   ];
 
   # prevent writing into the user's home dir
