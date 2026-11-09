@@ -4,6 +4,7 @@
   autoPatchelfHook,
   aws-lc,
   cargo,
+  darwin,
   electron_45,
   libpulseaudio,
   makeWrapper,
@@ -34,8 +35,12 @@ stdenv.mkDerivation (finalAttrs: {
     cargoDeps
     ;
 
+  postPatch = lib.optionalString stdenv.hostPlatform.isDarwin ''
+    # nixpkgs' ad-hoc codesign has no --deep, it signs nested bundles anyway
+    substituteInPlace electron/after-pack.mjs --replace-fail "'--deep', " ""
+  '';
+
   nativeBuildInputs = [
-    autoPatchelfHook
     makeWrapper
     nodejs-slim
     pkg-config
@@ -45,14 +50,22 @@ stdenv.mkDerivation (finalAttrs: {
     rustPlatform.cargoSetupHook
     cargo
     rustc
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ]
+  ++ lib.optionals stdenv.hostPlatform.isDarwin [
+    darwin.autoSignDarwinBinariesHook
+    # codesign for upstream's after-pack.mjs
+    darwin.sigtool
   ];
 
   buildInputs = [
     # cargoSetupHook makes aws-lc-sys and libsqlite3-sys use the system libraries
     aws-lc
+    sqlite
+  ]
+  ++ lib.optionals stdenv.hostPlatform.isLinux [
     libpulseaudio
     pipewire
-    sqlite
     # venmic, the prebuilt node module for screen share audio, links libstdc++
     (lib.getLib stdenv.cc.cc)
   ];
@@ -70,7 +83,7 @@ stdenv.mkDerivation (finalAttrs: {
     cp -r --no-preserve=mode ${sable-next-unwrapped} dist
     cp -r ${electron.dist} electron-dist
     chmod -R u+w electron-dist
-    pnpm --dir electron package --linux --dir \
+    pnpm --dir electron package ${if stdenv.hostPlatform.isDarwin then "--mac" else "--linux"} --dir \
       -c.electronDist="$PWD/electron-dist" \
       -c.electronVersion=${electron.version}
 
@@ -79,7 +92,16 @@ stdenv.mkDerivation (finalAttrs: {
 
   installPhase = ''
     runHook preInstall
+  ''
+  + lib.optionalString stdenv.hostPlatform.isDarwin ''
+    mkdir -p $out/Applications
+    mv electron/release/mac*/Sable.app $out/Applications
+    # tells the app that the package manager installs the updates
+    echo nix > $out/Applications/Sable.app/Contents/Resources/package-type
 
+    makeWrapper $out/Applications/Sable.app/Contents/MacOS/Sable $out/bin/sable
+  ''
+  + lib.optionalString stdenv.hostPlatform.isLinux ''
     mkdir -p $out/share/sable
     cp -r electron/release/linux*-unpacked/resources/. $out/share/sable
     # tells the app that the package manager installs the desktop entry and the updates
@@ -95,7 +117,8 @@ stdenv.mkDerivation (finalAttrs: {
       install -Dm644 packaging/flatpak/icons/''${size}x''${size}.png \
         $out/share/icons/hicolor/''${size}x''${size}/apps/moe.sable.client.png
     done
-
+  ''
+  + ''
     runHook postInstall
   '';
 
@@ -117,6 +140,7 @@ stdenv.mkDerivation (finalAttrs: {
     platforms = [
       "x86_64-linux"
       "aarch64-linux"
+      "aarch64-darwin"
     ];
   };
 })
