@@ -38,6 +38,9 @@ stdenv.mkDerivation (finalAttrs: {
   postPatch = lib.optionalString stdenv.hostPlatform.isDarwin ''
     # nixpkgs' ad-hoc codesign has no --deep, it signs nested bundles anyway
     substituteInPlace electron/after-pack.mjs --replace-fail "'--deep', " ""
+    # updates come from Nix; upstream only turns its updater off on Linux, MAS and Flatpak
+    substituteInPlace electron/src/updater.ts \
+      --replace-fail "!process.env.FLATPAK_ID &&" "!process.env.FLATPAK_ID && process.platform !== 'darwin' &&"
   '';
 
   nativeBuildInputs = [
@@ -98,6 +101,8 @@ stdenv.mkDerivation (finalAttrs: {
     mv electron/release/mac*/Sable.app $out/Applications
     # tells the app that the package manager installs the updates
     echo nix > $out/Applications/Sable.app/Contents/Resources/package-type
+    # the new file changes the sealed resources, so the bundle is signed again
+    codesign --force --sign - $out/Applications/Sable.app
 
     makeWrapper $out/Applications/Sable.app/Contents/MacOS/Sable $out/bin/sable
   ''
@@ -121,6 +126,9 @@ stdenv.mkDerivation (finalAttrs: {
   + ''
     runHook postInstall
   '';
+
+  # Electron's binaries come prebuilt, and stripping them breaks the bundle signature
+  dontStrip = stdenv.hostPlatform.isDarwin;
 
   meta = {
     description = "Desktop client for Sable, a Matrix client";
