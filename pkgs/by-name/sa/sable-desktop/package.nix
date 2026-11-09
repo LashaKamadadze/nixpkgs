@@ -55,11 +55,10 @@ stdenv.mkDerivation (finalAttrs: {
     rustc
   ]
   ++ lib.optionals stdenv.hostPlatform.isLinux [ autoPatchelfHook ]
-  ++ lib.optionals stdenv.hostPlatform.isDarwin [
-    darwin.autoSignDarwinBinariesHook
-    # codesign for upstream's after-pack.mjs
-    darwin.sigtool
-  ];
+  # codesign for upstream's after-pack.mjs and the install phase; the binaries are
+  # not changed after that, so autoSignDarwinBinariesHook is not used, it would
+  # re-sign the main binary without the bundle seal
+  ++ lib.optionals stdenv.hostPlatform.isDarwin [ darwin.sigtool ];
 
   buildInputs = [
     # cargoSetupHook makes aws-lc-sys and libsqlite3-sys use the system libraries
